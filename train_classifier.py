@@ -13,7 +13,7 @@ from functools import partial
 
 from wb_data import WaterBirdsDataset, get_loader, get_transform_cub, log_data
 
-from utils import MultiTaskHead
+from utils import MultiTaskHead, MaxNorm_via_PGD
 from utils import Logger, AverageMeter, set_seed, evaluate, get_y_p
 from utils import update_dict, get_results, write_dict_to_tb
 
@@ -62,6 +62,9 @@ parser.add_argument("--predict_place", action='store_true', help="Predict label 
 # parser.add_argument("--no_minority_groups", action='store_true',
 #                     help="Remove all minority group examples from the train data")
 parser.add_argument("--num_minority_groups_remove", type=int, required=False, default=0)
+
+parser.add_argument("--MaxNorm", type=int, default=0, help="classifier weight max threshold for L2 of feature wise weights")
+parser.add_argument("--thresh", type=int, default=0.2, help="MaxNorm thresh: MIN+thresh*(MAX-MIN)")
 
 parser.add_argument("--resume", type=str, default=None)
 
@@ -141,7 +144,11 @@ log_data(logger, trainset, testset_dict['wb'], get_yp_func=get_yp_func)
 
 # Model
 n_classes = trainset.n_classes
-model = torchvision.models.resnet50(pretrained=args.pretrained_model)
+# Update the model's state_dict with the saved weights
+model = torchvision.models.resnet50(pretrained=False)
+if args.pretrained_model:
+    pretrained_weights = torch.load('resnet50-0676ba61.pth')
+    model.load_state_dict(pretrained_weights)
 d = model.fc.in_features
 if not args.multitask:
     model.fc = torch.nn.Linear(d, n_classes)
@@ -165,6 +172,10 @@ else:
     scheduler = None
 
 criterion = torch.nn.CrossEntropyLoss()
+
+if args.MaxNorm:
+    pgdFunc = MaxNorm_via_PGD(thresh=args.thresh)
+    pgdFunc.setPerLayerThresh(model)
 
 logger.flush()
 
@@ -195,6 +206,9 @@ for epoch in range(args.num_epochs):
         
         loss_meter.update(loss, x.size(0))
         update_dict(acc_groups, y, g, logits)
+    
+    if args.MaxNorm:
+        pgdFunc.PGD(model)
 
     if args.scheduler:
         scheduler.step()
@@ -234,7 +248,7 @@ for epoch in range(args.num_epochs):
                 tag = "wb_birds" if not args.predict_place else "wb_places"
             write_dict_to_tb(writer, results, "test_{}/".format(tag), epoch)
             logger.write("Test results \n")
-            logger.write(str(results))
+            # logger.write(str(results))
 
         torch.save(
             model.state_dict(), os.path.join(args.output_dir, 'tmp_checkpoint.pt'))

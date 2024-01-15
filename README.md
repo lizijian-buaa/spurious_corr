@@ -180,3 +180,25 @@ and
 the [lukemelas/PyTorch-Pretrained-ViT repo](https://github.com/lukemelas/PyTorch-Pretrained-ViT).
 - To evaluate shape bias of the models we use the [bethgelab/model-vs-human repo](https://github.com/bethgelab/model-vs-human).
 - In the [new repo](https://github.com/izmailovpavel/spurious_feature_learning) we simplify the DFR implementation and extend the functionality. 
+
+
+# Waterbirds
+python train_classifier.py --output_dir=output --pretrained_model \
+  --num_epochs=100 --weight_decay=1e-3 --batch_size=32 --init_lr=1e-3 \
+  --eval_freq=1 --data_dir=data/waterbird_complete95_forest2water2 --test_wb_dir=data/waterbird_complete95_forest2water2 \
+  --augment_data --seed=100
+
+python train_classifier.py --output_dir=output --pretrained_model \
+  --num_epochs=100 --weight_decay=1e-3 --batch_size=32 --init_lr=1e-3 \
+  --eval_freq=1 --data_dir=data/waterbird_complete95_forest2water2 --test_wb_dir=data/waterbird_complete95_forest2water2 \
+  --augment_data --seed=100 --MaxNorm 1
+
+python dfr_evaluate_spurious.py --data_dir=data/waterbird_complete95_forest2water2 \
+  --result_path=output/DFR --ckpt_path=output/backbone/final_checkpoint.pt \
+  --tune_class_weights_dfr_train
+
+# CelebA
+python3 train_classifier.py --output_dir=<OUTPUT_DIR> --pretrained_model \
+  --num_epochs=50 --weight_decay=1e-4 --batch_size=128 --init_lr=1e-3 \
+  --eval_freq=1 --data_dir=<CELEBA_DIR> --test_wb_dir=<CELEBA_DIR> \
+  --augment_data --seed=<SEED>
